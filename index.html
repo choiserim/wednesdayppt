@@ -282,18 +282,22 @@
         }
 
         function renderResult(data) {
+            if (!data) return;
+
             // 헤더 정보
             document.getElementById('target-name').innerText = data.userName || "고객님";
-            document.getElementById('target-age').innerText = `(${data.userAge || '??'}세)`;
+            document.getElementById('target-age').innerText = data.userAge ? `(${data.userAge}세)` : "";
             document.getElementById('total-premium').innerText = (parseInt(data.totalPremium) || 0).toLocaleString() + "원";
             
             // 대시보드
             document.getElementById('score-text').innerText = (data.safetyScore || 0) + "%";
             document.getElementById('score-bar').style.width = (data.safetyScore || 0) + "%";
-            document.getElementById('count-good').innerText = data.counts.good || 0;
-            document.getElementById('count-insufficient').innerText = data.counts.insuff || 0;
-            document.getElementById('count-missing').innerText = data.counts.miss || 0;
-            document.getElementById('ai-summary').innerHTML = data.aiSummary;
+            
+            const counts = data.counts || {};
+            document.getElementById('count-good').innerText = counts.good || 0;
+            document.getElementById('count-insufficient').innerText = counts.insuff || 0;
+            document.getElementById('count-missing').innerText = counts.miss || 0;
+            document.getElementById('ai-summary').innerHTML = data.aiSummary || "분석 결과가 없습니다.";
 
             // 상세 진단표
             const rowsContainer = document.getElementById('diagnosis-rows');
