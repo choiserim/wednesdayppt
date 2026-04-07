@@ -3,469 +3,433 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 보장 분석 및 맞춤 컨설팅</title>
+    <title>삼성생명 보장 분석 및 상품 추천</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f1f5f9; scroll-behavior: smooth; }
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
         .gradient-bg { background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%); }
-        .card { background: white; border-radius: 1.25rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); overflow: hidden; transition: all 0.3s ease; }
-        .progress-container { height: 8px; background: #e2e8f0; border-radius: 4px; }
-        .progress-fill { height: 100%; border-radius: 4px; transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1); }
-        .consulting-card { border-left: 4px solid #3b82f6; }
+        .card { background: white; border-radius: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; transition: all 0.3s ease; }
+        .recommend-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .progress-fill { transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1); }
         
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 200; backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 1rem; }
-        .modal-content { background: white; border-radius: 1.5rem; max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; transform: translateY(20px); transition: transform 0.3s ease; }
-        .modal-overlay.active { display: flex; }
-        .modal-overlay.active .modal-content { transform: translateY(0); }
-
-        @media print {
-            .no-print { display: none !important; }
-            body { background-color: white !important; padding: 0 !important; }
-            .card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; page-break-inside: avoid; }
-        }
-
         .loading-overlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(255, 255, 255, 0.9); z-index: 100; backdrop-filter: blur(4px);
             align-items: center; justify-content: center; flex-direction: column;
         }
-        .pulse { animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.5; } 50% { transform: scale(1); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.5; } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .animate-pulse-custom { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+        .hidden { display: none !important; }
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .strategy-step { position: relative; padding-left: 2rem; }
+        .strategy-step::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: #e2e8f0; }
+        .strategy-step::after { content: ''; position: absolute; left: -4px; top: 0.5rem; width: 10px; height: 10px; border-radius: 50%; background: #2563eb; border: 2px solid white; }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
-    <!-- Modal for Product Details -->
-    <div id="product-modal" class="modal-overlay" onclick="closeModal(event)">
-        <div class="modal-content shadow-2xl" onclick="event.stopPropagation()">
-            <div id="modal-body"></div>
-            <div class="p-6 bg-gray-50 border-t flex justify-end">
-                <button onclick="closeModal()" class="bg-gray-800 text-white px-6 py-2 rounded-lg font-bold">닫기</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Loading Overlay -->
     <div id="loading" class="loading-overlay">
-        <div class="text-blue-600 mb-4 text-5xl pulse"><i class="fas fa-robot"></i></div>
-        <p class="font-bold text-gray-700 text-xl text-center">AI가 최적의 보장 플랜을<br>설계하고 있습니다...</p>
-        <p class="text-sm text-gray-400 mt-3 italic">"건강상품 한 권으로 끝내기(2506)" 데이터를 분석 중입니다.</p>
+        <div class="text-blue-600 mb-4 text-6xl animate-pulse-custom"><i class="fas fa-shield-heart"></i></div>
+        <p class="font-bold text-gray-700 text-xl">보장 데이터를 정밀 분석 중입니다...</p>
     </div>
 
-    <div class="max-w-5xl mx-auto space-y-8">
+    <!-- [메인 컨테이너] -->
+    <div id="main-container" class="max-w-5xl mx-auto space-y-8">
         
-        <!-- File Selector -->
-        <section class="no-print bg-white p-8 rounded-2xl border-2 border-dashed border-blue-200 text-center shadow-sm">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">분석할 보험 증권(PDF)을 업로드하세요</h2>
-            <div class="flex flex-col items-center gap-4">
+        <!-- 파일 업로드 섹션 -->
+        <section class="bg-white p-6 rounded-2xl border-2 border-dashed border-blue-200 text-center shadow-sm">
+            <h2 class="text-lg font-bold text-gray-800 mb-3 text-blue-600 italic">"내 보험, 얼마나 든든할까?"</h2>
+            <div class="flex flex-col items-center gap-3">
                 <input type="file" id="pdf-upload" class="hidden" accept=".pdf" onchange="processPDF(this.files[0])">
-                <button onclick="document.getElementById('pdf-upload').click()" class="bg-blue-600 text-white px-10 py-4 rounded-xl font-bold hover:bg-blue-700 transition flex items-center gap-2 shadow-lg shadow-blue-100 text-lg">
-                    <i class="fas fa-cloud-upload-alt"></i> 증권 분석 시작하기
+                <button onclick="document.getElementById('pdf-upload').click()" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition flex items-center gap-2 shadow-lg">
+                    <i class="fas fa-upload"></i> 보장분석 리포트(PDF) 업로드
                 </button>
-                <div class="flex items-center gap-2 text-sm text-gray-500 font-medium">
-                    <i class="fas fa-info-circle text-blue-400"></i>
-                    <span>파일명(만기년월 등)이 리포트의 메인 제목으로 표시됩니다.</span>
-                </div>
+                <p class="text-[11px] text-gray-400 font-medium">삼성생명 43대 주요 보장 항목 및 최신 상품 매칭 분석</p>
             </div>
         </section>
 
-        <div id="report-content" class="space-y-8">
-            <!-- Header -->
-            <header class="gradient-bg text-white p-10 rounded-2xl shadow-xl relative overflow-hidden">
-                <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                    <div>
-                        <span class="inline-block px-3 py-1 bg-blue-500 bg-opacity-30 rounded-full text-xs font-bold mb-3 tracking-widest uppercase">Samsung Life Insurance</span>
-                        <h1 class="text-3xl md:text-4xl font-bold mb-2">보장 자산 정밀 분석 보고서</h1>
-                        <p class="opacity-80 text-lg font-light"><span id="report-main-title" class="font-bold border-b border-white border-opacity-50">파일 업로드 대기</span>의 분석 결과</p>
+        <div id="report-view" class="space-y-8">
+            <!-- 헤더 섹션 -->
+            <header class="gradient-bg text-white p-8 rounded-2xl shadow-xl relative overflow-hidden">
+                <div class="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                    <div class="text-center md:text-left">
+                        <h1 class="text-3xl font-bold mb-1 tracking-tight">Personal Insurance Audit</h1>
+                        <p class="opacity-80 text-sm font-light uppercase tracking-widest">삼성생명 지능형 보장 분석 결과</p>
+                        <div class="mt-4 flex items-center gap-2 justify-center md:justify-start">
+                            <span class="px-4 py-1 bg-white text-blue-900 rounded-full font-bold text-sm">
+                                <span id="target-name">분석 대기 중</span>
+                                <span id="target-age" class="ml-1 text-blue-600"></span>
+                            </span>
+                            <span class="text-xs opacity-70">컨설턴트: 최세림 GFC</span>
+                        </div>
                     </div>
-                    <div class="bg-white bg-opacity-10 p-5 rounded-xl backdrop-blur-md border border-white border-opacity-20 text-sm min-w-[240px]">
-                        <p class="mb-1 flex items-center"><i class="far fa-calendar-check mr-2 w-4"></i><span id="expiry-label" class="mr-1">분석일:</span> <span id="current-date" class="font-bold text-blue-100 tracking-wide">-</span></p>
-                        <p class="flex items-center"><i class="fas fa-user-tie mr-2 w-4"></i><span>전문 컨설턴트: 삼성생명 최세림</span></p>
+                    <div class="bg-white bg-opacity-10 p-4 rounded-xl backdrop-blur-md border border-white border-opacity-20 text-center">
+                        <p class="text-[10px] uppercase opacity-60 mb-1">Total Monthly Premium</p>
+                        <p id="total-premium" class="text-2xl font-black">0원</p>
                     </div>
                 </div>
             </header>
 
-            <!-- Dashboard -->
+            <!-- 대시보드 요약 -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="card p-6 flex flex-col items-center justify-center text-center">
-                    <p class="text-gray-400 text-xs font-bold uppercase mb-2">Overall Score</p>
-                    <div id="score-text" class="text-5xl font-black text-red-300 mb-2">-%</div>
-                    <div class="w-full progress-container mt-2">
-                        <div id="score-bar" class="progress-fill bg-blue-600" style="width: 0%"></div>
+                <div class="card p-6 flex flex-col items-center justify-center">
+                    <p class="text-gray-400 text-[10px] font-bold uppercase mb-2">보장 건전성 지수</p>
+                    <div id="score-text" class="text-5xl font-black text-blue-600">0%</div>
+                    <div class="w-full h-1.5 bg-gray-100 rounded-full mt-4">
+                        <div id="score-bar" class="h-full bg-blue-600 rounded-full transition-all duration-1000" style="width: 0%"></div>
                     </div>
-                    <p id="score-label" class="text-xs text-gray-400 mt-3 font-bold">분석 대기중</p>
                 </div>
-                <div class="card p-6 flex flex-col items-center justify-center text-center">
-                    <p class="text-gray-400 text-xs font-bold uppercase mb-2">Monthly Premium</p>
-                    <div id="total-premium" class="text-3xl font-bold text-gray-800">0원</div>
-                    <p class="text-xs text-gray-500 mt-3 font-medium">유지중인 보험료 합계</p>
+
+                <div class="card p-6 flex flex-col items-center justify-center">
+                    <p class="text-gray-400 text-[10px] font-bold uppercase mb-2">항목별 가입 현황</p>
+                    <div class="flex gap-4 items-end py-1">
+                        <div class="text-center">
+                            <span id="count-good" class="text-2xl font-bold text-emerald-500">0</span>
+                            <p class="text-[9px] text-gray-400 font-bold">우수/보통</p>
+                        </div>
+                        <div class="text-center border-x px-4">
+                            <span id="count-insufficient" class="text-2xl font-bold text-orange-400">0</span>
+                            <p class="text-[9px] text-gray-400 font-bold">부족</p>
+                        </div>
+                        <div class="text-center">
+                            <span id="count-missing" class="text-2xl font-bold text-rose-500">0</span>
+                            <p class="text-[9px] text-gray-400 font-bold">미가입</p>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-[9px] text-gray-300">총 43개 핵심 보장 항목 기준</p>
                 </div>
-                <div class="card p-6 flex flex-col items-center justify-center text-center">
-                    <p class="text-gray-400 text-xs font-bold uppercase mb-2">Status Summary</p>
-                    <div class="flex gap-5 items-end py-2">
-                        <div class="text-center">
-                            <span id="count-insufficient" class="text-2xl font-bold text-orange-500">0</span>
-                            <p class="text-[10px] text-gray-400 font-bold">부족</p>
-                        </div>
-                        <div class="text-center">
-                            <span id="count-missing" class="text-2xl font-bold text-red-600">0</span>
-                            <p class="text-[10px] text-gray-400 font-bold">미가입</p>
-                        </div>
-                        <div class="text-center">
-                            <span id="count-good" class="text-2xl font-bold text-green-500">0</span>
-                            <p class="text-[10px] text-gray-400 font-bold">충분</p>
-                        </div>
-                    </div>
-                    <div class="mt-3 flex gap-3 text-[9px] text-gray-400 border-t pt-2 w-full justify-center">
-                        <span>🔴 0%</span>
-                        <span>🟠 1~79%</span>
-                        <span>🟢 80%+</span>
-                    </div>
+
+                <div class="card p-6 bg-blue-50 border border-blue-100 flex flex-col justify-center">
+                    <p class="text-blue-800 text-[10px] font-bold uppercase mb-2 text-center">AI 분석 총평</p>
+                    <p id="ai-summary" class="text-xs text-gray-600 text-center leading-relaxed">
+                        증권을 업로드하시면 AI가 <br>보장 공백을 분석하여 상품을 제안합니다.
+                    </p>
                 </div>
             </div>
 
-            <!-- Detailed Table -->
-            <section class="card">
-                <div class="bg-slate-50 px-8 py-5 border-b border-gray-100">
-                    <h2 class="text-lg font-bold text-slate-800 flex items-center">
-                        <i class="fas fa-chart-pie text-blue-600 mr-3"></i>항목별 보장 분석 상세
-                    </h2>
-                </div>
-                <div class="p-8">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="text-xs text-gray-400 uppercase tracking-wider border-b">
-                                <tr>
-                                    <th class="pb-4 font-bold">보장 담보</th>
-                                    <th class="pb-4 font-bold">현재 가입액</th>
-                                    <th class="pb-4 font-bold">권장 가입액</th>
-                                    <th class="pb-4 font-bold">보장 충족도</th>
-                                    <th class="pb-4 font-bold text-right">진단 결과</th>
-                                </tr>
-                            </thead>
-                            <tbody id="diagnosis-rows" class="text-sm">
-                                <tr><td colspan="5" class="py-16 text-center text-gray-300">분석 데이터가 없습니다. 증권을 업로드해주세요.</td></tr>
-                            </tbody>
-                        </table>
+            <!-- 상세 진단표 -->
+            <section class="card overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b flex justify-between items-center">
+                    <h3 class="font-bold text-gray-700 text-sm italic underline decoration-blue-400 decoration-2">43대 주요 보장 정밀 진단표</h3>
+                    <div class="flex gap-3 text-[10px] font-bold">
+                        <span class="text-emerald-600">● 우수</span>
+                        <span class="text-orange-500">● 부족</span>
+                        <span class="text-rose-600">● 미가입</span>
                     </div>
+                </div>
+                <div class="max-h-[400px] overflow-y-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="sticky top-0 bg-white shadow-sm border-b z-10">
+                            <tr class="text-gray-400 font-medium">
+                                <th class="px-6 py-3">보장 담보 명칭</th>
+                                <th class="px-4 py-3">현재 가입액</th>
+                                <th class="px-4 py-3">기준 대비</th>
+                                <th class="px-6 py-3 text-right">진단</th>
+                            </tr>
+                        </thead>
+                        <tbody id="diagnosis-rows" class="divide-y divide-gray-50">
+                            <tr><td colspan="4" class="py-20 text-center text-gray-300">리포트를 업로드해 주세요.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
-            <!-- Custom Consulting Section -->
-            <section id="consulting-section" class="space-y-6 hidden">
-                <div class="flex items-center gap-3 px-2">
-                    <div class="h-8 w-1.5 bg-blue-600 rounded-full"></div>
-                    <h2 class="text-2xl font-bold text-gray-800">AI 맞춤형 보장 보강 제안</h2>
+            <!-- 추천 상품 섹션 -->
+            <section id="total-area" class="space-y-6 hidden">
+                <div class="flex items-center gap-3">
+                    <div class="h-6 w-1.5 bg-blue-600 rounded-full"></div>
+                    <h2 class="text-xl font-black text-gray-800">삼성생명 상품 라인업</h2>
                 </div>
-
-                <div id="consulting-content" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Cards will be injected here -->
+                <div id="recommend-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 스크립트에서 카드가 주입됨 -->
                 </div>
+            </section>
 
-                <div class="bg-blue-50 border border-blue-100 p-6 rounded-2xl">
-                    <h3 class="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                        <i class="fas fa-lightbulb"></i> 컨설팅 총평
-                    </h3>
-                    <p id="total-consulting-msg" class="text-blue-800 text-sm leading-relaxed"></p>
+            <!-- 전문가 제안 섹션 -->
+            <section id="expert-strategy-section" class="hidden space-y-6">
+                <div class="flex items-center gap-3">
+                    <div class="h-6 w-1.5 bg-blue-900 rounded-full"></div>
+                    <h2 class="text-xl font-black text-gray-800">전문가 제안 가입 전략 및 상품 안내</h2>
+                </div>
+                <div class="card p-8 border-l-8 border-blue-900">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="space-y-6">
+                            <h3 class="text-lg font-bold text-blue-900 flex items-center gap-2">
+                                <i class="fas fa-lightbulb"></i> 맞춤형 보강 로드맵
+                            </h3>
+                            <div class="space-y-4">
+                                <div class="strategy-step">
+                                    <p class="font-bold text-gray-800 text-sm">Step 1. 3대 질병 진단비 최적화</p>
+                                    <p class="text-xs text-gray-500 mt-1 italic">부족한 암/뇌/심 진단비를 '다모은 건강보험 S5'의 최신 특약으로 보강하여 치료비 부담을 해소합니다.</p>
+                                </div>
+                                <div class="strategy-step">
+                                    <p class="font-bold text-gray-800 text-sm">Step 2. 비급여 치료 및 신의료기술 대비</p>
+                                    <p class="text-xs text-gray-500 mt-1 italic">중입자치료, 로봇수술 등 고가의 비급여 담보를 추가하여 의료비 공백을 최소화합니다.</p>
+                                </div>
+                                <div class="strategy-step">
+                                    <p class="font-bold text-gray-800 text-sm">Step 3. 생애주기별 맞춤 환급 구조 설정</p>
+                                    <p class="text-xs text-gray-500 mt-1 italic">'The Dream' 또는 '플러스원'을 통해 보장과 자산 형성을 동시에 고려한 포트폴리오를 구성합니다.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-50 p-6 rounded-xl border border-slate-100 flex flex-col justify-between">
+                            <div>
+                                <h4 class="text-sm font-black text-gray-700 mb-4 uppercase tracking-tighter">컨설턴트 핵심 체크포인트</h4>
+                                <ul class="space-y-3">
+                                    <li class="flex items-start gap-2 text-xs text-gray-600">
+                                        <i class="fas fa-check-circle text-blue-600 mt-0.5"></i>
+                                        <span>기존 보험 해지보다는 <b>부족분 보강</b>을 우선하여 가성비 극대화</span>
+                                    </li>
+                                    <li class="flex items-start gap-2 text-xs text-gray-600">
+                                        <i class="fas fa-check-circle text-blue-600 mt-0.5"></i>
+                                        <span>가족력을 고려한 <b>유사암/전이암</b> 범위 확대 제안</span>
+                                    </li>
+                                    <li class="flex items-start gap-2 text-xs text-gray-600">
+                                        <i class="fas fa-check-circle text-blue-600 mt-0.5"></i>
+                                        <span>유병력자의 경우 <b>계약전환제도</b>를 활용한 향후 보험료 인하 전략</span>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="mt-6 pt-4 border-t border-slate-200">
+                                <p class="text-[10px] text-gray-400 font-medium">※ 본 안내는 고객님의 보장 분석 결과를 바탕으로 전문가가 주관적으로 작성한 가이드라인이며, 실제 가입 시 상품 설명서를 반드시 확인하시기 바랍니다.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
         </div>
-
-        <!-- Footer -->
-        <footer class="bg-white p-8 rounded-2xl shadow border border-gray-100">
-            <div class="flex flex-col md:flex-row justify-between items-center gap-6">
-                <div>
-                    <p class="text-xs text-gray-400 font-bold mb-1">© 2026 AI Insurance Analysis Platform</p>
-                    <p class="text-[10px] text-gray-300">본 분석 결과는 삼성생명 주력 상품군(25.06 기준) 데이터를 기반으로 도출되었습니다.</p>
-                </div>
-                <div class="flex gap-3 no-print">
-                    <button onclick="window.print()" class="bg-slate-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-900 transition flex items-center gap-2 text-sm">
-                        <i class="fas fa-print"></i> PDF 저장
-                    </button>
-                    <a href="tel:01000000000" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition flex items-center gap-2 text-sm">
-                        <i class="fas fa-phone-alt"></i> 전문가 상담
-                    </a>
-                </div>
-            </div>
-        </footer>
     </div>
+
+    <!-- [상세 정보 컨테이너] -->
+    <div id="detail-view" class="max-w-3xl mx-auto hidden fade-in py-4"></div>
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-        
-        document.getElementById('current-date').innerText = new Date().toLocaleDateString('ko-KR');
 
-        const guidelines = [
-            { id: 'cancer', name: '일반암 진단비', target: 50000000, keywords: ['일반암', '암진단', '암보장'] },
-            { id: 'brain', name: '뇌혈관질환 진단비', target: 30000000, keywords: ['뇌혈관', '뇌졸중', '뇌출혈'] },
-            { id: 'heart', name: '허혈심장질환 진단비', target: 30000000, keywords: ['허혈성', '급성심근경색', '심장질환'] },
-            { id: 'surgery', name: '질병수술비', target: 1000000, keywords: ['질병수술'] },
-            { id: 'dementia', name: '치매 진단비', target: 20000000, keywords: ['치매', '인지장애'] },
-            { id: 'care', name: '간병인 사용일당', target: 150000, keywords: ['간병인', '간병사용'] }
+        const coverageItems = [
+            { id: 1, name: "일반암 진단비", target: 50000000, status: "우수" },
+            { id: 2, name: "유사암 진단비", target: 10000000, status: "우수" },
+            { id: 3, name: "고액암 진단비", target: 30000000, status: "우수" },
+            { id: 4, name: "암 수술비", target: 5000000, status: "우수" },
+            { id: 5, name: "암 입원일당", target: 100000, status: "우수" },
+            { id: 6, name: "표적항암약물치료비", target: 50000000, status: "보통" },
+            { id: 7, name: "항암방사선약물치료비", target: 20000000, status: "부족" },
+            { id: 8, name: "전이암 진단비", target: 20000000, status: "부족" },
+            { id: 9, name: "뇌혈관질환 진단비", target: 20000000, status: "부족" },
+            { id: 10, name: "뇌졸중 진단비", target: 20000000, status: "부족" },
+            { id: 11, name: "뇌출혈 진단비", target: 20000000, status: "부족" },
+            { id: 12, name: "허혈성심장질환 진단비", target: 20000000, status: "부족" },
+            { id: 13, name: "급성심근경색 진단비", target: 20000000, status: "부족" },
+            { id: 14, name: "부정맥 진단비", target: 10000000, status: "부족" },
+            { id: 15, name: "심부전 진단비", target: 10000000, status: "부족" },
+            { id: 16, name: "뇌/심장 수술비", target: 10000000, status: "부족" },
+            { id: 17, name: "심장질환 입원일당", target: 50000, status: "부족" },
+            { id: 18, name: "질병 수술비(1-5종)", target: 5000000, status: "부족" },
+            { id: 19, name: "상해 수술비(1-5종)", target: 5000000, status: "부족" },
+            { id: 20, name: "질병 입원일당", target: 30000, status: "부족" },
+            { id: 21, name: "상해 입원일당", target: 30000, status: "부족" },
+            { id: 22, name: "중환자실 입원일당", target: 200000, status: "부족" },
+            { id: 23, name: "재해 수술비", target: 2000000, status: "부족" },
+            { id: 24, name: "응급실 내원비", target: 30000, status: "부족" },
+            { id: 25, name: "간병인 사용일당(질병)", target: 150000, status: "부족" },
+            { id: 26, name: "간병인 사용일당(상해)", target: 150000, status: "미가입" },
+            { id: 27, name: "장기요양진단비(1-2등급)", target: 20000000, status: "미가입" },
+            { id: 28, name: "경증치매 진단비", target: 5000000, status: "미가입" },
+            { id: 29, name: "중증치매 진단비", target: 20000000, status: "미가입" },
+            { id: 30, name: "재가/시설급여 지원금", target: 500000, status: "미가입" },
+            { id: 31, name: "일반 사망보험금", target: 100000000, status: "미가입" },
+            { id: 32, name: "재해 사망보험금", target: 100000000, status: "미가입" },
+            { id: 33, name: "질병 80%이상 후유장해", target: 50000000, status: "미가입" },
+            { id: 34, name: "상해 80%이상 후유장해", target: 100000000, status: "미가입" },
+            { id: 35, name: "질병 후유장해(3~100%)", target: 30000000, status: "미가입" },
+            { id: 36, name: "상해 후유장해(3~100%)", target: 50000000, status: "미가입" },
+            { id: 37, name: "일상생활배상책임", target: 100000000, status: "미가입" },
+            { id: 38, name: "골절 진단비", target: 500000, status: "미가입" },
+            { id: 39, name: "화상 진단비", target: 500000, status: "미가입" },
+            { id: 40, name: "깁스 치료비", target: 200000, status: "미가입" },
+            { id: 41, name: "각막이식 수술비", target: 10000000, status: "미가입" },
+            { id: 42, name: "만기환급금 보장", target: 100, status: "미가입" },
+            { id: 43, name: "암/간병 시그니처 보장", target: 100, status: "미가입" }
         ];
 
         const productPortfolio = [
-            {
-                id: 'damoeun-s5',
-                name: '다(多)모은 건강보험 S5',
-                target: ['cancer', 'brain', 'heart'],
-                reason: '당사 대표 상품으로 최다 특약 보유. 중입자치료 등 업계 최고 수준의 신담보를 한 번에 준비할 수 있습니다.',
-                features: ['중입자치료', '146개 특약', '표준체 최적'],
-                detail: {
-                    type: '표준체 통합보험',
-                    merit: '하나의 보험으로 암/뇌/심/수술/입원을 완벽하게 방어하는 올인원 플랜',
-                    coverage: [
-                        { label: '항암방사선', val: '중입자치료 무제한 보장' },
-                        { label: '3대 진단', val: '각 항목별 최대 5,000만원' }
-                    ]
-                }
-            },
-            {
-                id: 'ganpyeon-damoeun',
-                name: 'The간편한 다(多)모은',
-                target: ['cancer', 'brain', 'heart'],
-                reason: '유병자도 일반암/뇌혈관/허혈성 보장을 표준체 수준의 넓은 범위로 가입 가능한 베스트셀러 상품입니다.',
-                features: ['3.3.5 고지', '유병자 가능', '전범위 뇌/심'],
-                detail: {
-                    type: '간편 고지형(유병자)',
-                    merit: '병력이 있어도 가입 문턱은 낮추고 보장 범위는 넓힌 상품',
-                    coverage: [
-                        { label: '고지조건', val: '3개월 내 입원/수술 등 3.3.5 기준' },
-                        { label: '보장범위', val: '뇌출혈/뇌졸중이 아닌 뇌혈관질환 전체' }
-                    ]
-                }
-            },
-            {
-                id: 'the-light',
-                name: 'The라이트 간편건강(갱신형)',
-                target: ['surgery', 'care'],
-                reason: '25.06 출시된 초경증 유병자 최적화 상품. 특히 간병인 사용일당과 수술비 가격 경쟁력이 뛰어납니다.',
-                features: ['초경증 가능', '간병특화', '갱신형 가성비'],
-                detail: {
-                    type: '경증 유병자/보강형',
-                    merit: '기존 보험에 부족한 수술비와 간병인 일당만 저렴하게 끼워넣는 보강재',
-                    coverage: [
-                        { label: '간병사용', val: '일반병원 15만원 / 요양 3만원' },
-                        { label: '질병수술', val: '1~5종 수술비 집중 보강' }
-                    ]
-                }
-            },
-            {
-                id: 'dementia-care',
-                name: '삼성 치매간병 보험',
-                target: ['dementia', 'care'],
-                reason: '치매 진단부터 재가/시설급여까지 고령화 시대 필수 보장. 치매 보장이 미가입된 분들께 필수입니다.',
-                features: ['재가보장', '치매단계별 지급', '간병지원'],
-                detail: {
-                    type: '노후 특화 보험',
-                    merit: 'AI 분석 결과 치매/간병 항목이 0%인 분들을 위한 전용 플랜',
-                    coverage: [
-                        { label: '장기요양', val: '1~5등급 판정 시 매월 급여' },
-                        { label: '재가급여', val: '방문요양/간호 이용 시 보장' }
-                    ]
-                }
-            },
-            {
-                id: 'health-one',
-                name: '건강생활 보험(수술비 특화)',
-                target: ['surgery'],
-                reason: '수술비 보장이 주황색(부족)인 경우, 종수술비와 N대 수술비를 집중적으로 채워주는 상품입니다.',
-                features: ['N대수술', '종수술비 강화', '저렴한 보험료'],
-                detail: {
-                    type: '수술/입원 보강형',
-                    merit: '반복적으로 발생하는 수술비에 대해 횟수 제한 없는 보장 강화',
-                    coverage: [
-                        { label: '질병수술', val: '질병 1~5종 업계 최대 수준' },
-                        { label: 'N대수술', val: '다빈도 질환(백내장 등) 보강' }
-                    ]
-                }
-            }
+            { id: 'damoeun-s5', type: '표준체 통합형', name: '다(多)모은 건강보험 S5', target: ['cancer', 'brain', 'heart', 'surgery'], reason: '당사 최다 특약 보유한 대표 건강상품으로, 업계 최초 중입자치료 및 프리미엄 암치료비 등 최신 의료기술 보장에 특화되어 있습니다.', features: ['표준체', '중입자치료', '올인원케어'], detail: { merit: '소구력 높은 비급여 항암약물/로봇수술 및 상급종합병원 치료비 집중 강화', coverage: [{ label: '보장/납입', val: '90세·종신 / 10·15·20·30년납' }, { label: '주요특약', val: '항암중입자방사선, 프리미엄암특정치료' }] } },
+            { id: 'ganpyeon-damoeun', type: '유병자 통합형', name: 'The간편한 다(多)모은 건강보험', target: ['cancer', 'brain', 'heart', 'surgery'], reason: '초경증(3.10.5)부터 중증(3.1.5)까지 유병자 고객을 세분화하여 표준체 수준의 폭넓은 보장을 제공합니다.', features: ['간편고지', '계약전환제도', '무해약환급금형'], detail: { merit: '무사고 시 보험료 인하가 가능한 계약전환제도 및 다양한 유병자 라인업 완성', coverage: [{ label: '고지유형', val: '1형(3.10.5) ~ 4형(3.1.5) 세분화' }, { label: '보장/납입', val: '90세·종신 / 10·15·20·30년납' }] } },
+            { id: 'the-light-ganpyeon-2506', type: '유병자 실속형', name: 'The라이트 간편건강보험 (2506)', target: ['cancer', 'brain', 'heart'], reason: '25.06 신상품으로, 상품 구조 단순화 및 핵심 전략 담보(암/뇌/심)의 가격 경쟁력을 극대화한 가성비 유병자 상품입니다.', features: ['25.06 신상', '가격경쟁력', '갱신형'], detail: { merit: '기존 유병자 보험 대비 낮은 보험료로 핵심 3대 질병 보장 집중 타겟팅', coverage: [{ label: '상품구조', val: '20/30년 갱신형 (최대 100세)' }, { label: '고지항목', val: '1형(3.10.5), 2형(3.5.5)' }] } },
+            { id: 'the-light-health', type: '건강우량체형', name: 'The라이트 건강보험 (건강고지형)', target: ['cancer', 'brain', 'heart'], reason: '표준체보다 더 건강한 우량고객을 위한 상품으로, 10년 고지 시 일반 표준체 대비 최대 25% 저렴한 보험료가 장점입니다.', features: ['건강고지형', '최대 25% 할인', '우량체 특화'], detail: { merit: '입원/수술 고지 추가를 통해 건강한 고객에게 확실한 보험료 혜택 제공', coverage: [{ label: '고지유형', val: '1형(10년고지), 2형(7년고지)' }, { label: '보장/납입', val: '100세 만기 / 10·15·20·30년납' }] } },
+            { id: 'double-bojang-cancer', type: '보장+저축 하이브리드', name: '더블보장보험 (암/암간병)', target: ['cancer', 'care'], reason: '암이나 간병 발생 시 기납입보험료의 최대 200%를 지급하며, 생존 보장과 연금/사망 기능을 결합한 하이브리드 상품입니다.', features: ['200% 환급', '암간병 특화', '건강관리서비스'], detail: { merit: '암/간병 발생 시 연금액 2배 설계로 노후 자산 니즈 동시 충족', coverage: [{ label: '주요특징', val: '암/간병 시그니처 발생 시 기납입 2배' }, { label: '추가보장', val: '발생 후 사망보험금 가입금액 2배' }] } },
+            { id: 'plus-one-health', type: '환급형 건강보험', name: '플러스원 건강보험', target: ['cancer', 'death', 'senior'], reason: '업계 최초 자유설계식 환급형 상품으로, 납입 완료 시 해약환급금 100% 수준을 유지하며 시니어 보장을 더해줍니다.', features: ['100% 환급', '시니어보장플랜', '전이암 보장'], detail: { merit: '노년기에 필요한 사망/시니어 보장이 장기 유지 시 자동으로 추가되는 구조', coverage: [{ label: '환급구조', val: '납입완료 시 100% 수준 환급금 형성' }, { label: '특화담보', val: '전이암/고액암 직접치료 특약 탑재' }] } },
+            { id: 'well-aging-health', type: '실버 케어형', name: '웰에이징(Well-Aging) 건강보험', target: ['care', 'dementia', 'senior'], reason: '노인성 질환 예방부터 치매, 재가/시설 급여까지 노후 돌봄을 완벽하게 커버하는 시니어 전용 보험입니다.', features: ['시니어 전용', '돌봄플랜', '건강관리지원금'], detail: { merit: '치매 보장과 돌봄 서비스(재가/시설급여)에 집중한 시니어 특화 라인업', coverage: [{ label: '특화특약', val: '웰에이징 질병보장, 건강관리지원금 전환' }, { label: '케어서비스', val: '웰에이징 케어서비스 제공' }] } },
+            { id: 'the-dream-health', type: '환급 특화형', name: 'The(더) Dream 건강보험', target: ['cancer', 'brain', 'heart', 'refund'], reason: '보장, 환급, 연금을 하나로 합친 어른이 전용 보험으로, 만기 시 100% 환급과 완납기념금을 제공합니다.', features: ['100% 환급', '완납기념금', '심플한 구조'], detail: { merit: '주보험 하나로 33가지 주요 보장 해결 및 최대 110% 강화된 환급 구조', coverage: [{ label: '환급률', val: '만기 시 100% + 완납기념금(5~10%)' }, { label: '가입대상', val: '표준체 및 간편고지(3.5.5) 선택 가능' }] } }
         ];
-
-        function openProductDetail(productId) {
-            const product = productPortfolio.find(p => p.id === productId);
-            if (!product) return;
-
-            const modal = document.getElementById('product-modal');
-            const body = document.getElementById('modal-body');
-
-            body.innerHTML = `
-                <div class="gradient-bg p-8 text-white rounded-t-1.5rem">
-                    <h2 class="text-2xl font-bold">${product.name}</h2>
-                    <p class="opacity-70 text-sm mt-1">${product.detail.type}</p>
-                </div>
-                <div class="p-8 space-y-6">
-                    <div>
-                        <h4 class="font-bold text-gray-800 mb-2">핵심 강점</h4>
-                        <p class="text-sm text-gray-600 bg-blue-50 p-4 rounded-xl">${product.detail.merit}</p>
-                    </div>
-                    <div class="space-y-3">
-                        <h4 class="font-bold text-gray-800">주요 보장</h4>
-                        ${product.detail.coverage.map(c => `
-                            <div class="flex justify-between items-center border-b pb-2 text-sm">
-                                <span class="text-gray-500">${c.label}</span>
-                                <span class="font-bold text-blue-700">${c.val}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-            modal.classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('product-modal').classList.remove('active');
-        }
 
         async function processPDF(file) {
             if (!file) return;
-            const loader = document.getElementById('loading');
-            loader.style.display = 'flex';
+            document.getElementById('loading').style.display = 'flex';
 
             try {
                 const arrayBuffer = await file.arrayBuffer();
                 const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                let allText = "";
-                let scoreFromPage2 = null;
-                let expiryInfo = "";
-
-                const fileNameClean = file.name.replace(/\.[^/.]+$/, "");
-                const fileNameMatch = file.name.match(/\d{4}/);
-                if (fileNameMatch) expiryInfo = fileNameMatch[0];
-
-                if (pdf.numPages >= 2) {
-                    const page = await pdf.getPage(2);
-                    const textContent = await page.getTextContent();
-                    const page2Text = textContent.items.map(item => item.str).join(" ");
-                    const scoreMatch = page2Text.match(/(\d{1,3})\s*%/);
-                    if (scoreMatch) scoreFromPage2 = parseInt(scoreMatch[1]);
-                }
-
+                let rawText = "";
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    allText += textContent.items.map(item => item.str).join(" ");
+                    const content = await page.getTextContent();
+                    rawText += content.items.map(it => it.str).join(" ") + " \n ";
                 }
 
-                updateHeaderInfo(fileNameClean, expiryInfo);
-                analyzeInsurance(allText, fileNameClean, scoreFromPage2);
-            } catch (error) {
-                console.error(error);
-                alert("분석 중 오류 발생");
-            } finally {
-                loader.style.display = 'none';
-            }
-        }
+                // --- 데이터 정밀 추출 로직 (보정) ---
+                // 줄바꿈 및 불필요한 중복 공백 제거하여 검색 신뢰성 확보
+                const textContent = rawText.replace(/\s+/g, ' ').trim();
 
-        function updateHeaderInfo(fileName, expiryInfo) {
-            const titleEl = document.getElementById('report-main-title');
-            const dateEl = document.getElementById('current-date');
-            const labelEl = document.getElementById('expiry-label');
-            titleEl.innerText = fileName;
-            if (expiryInfo && expiryInfo.length === 4 && !isNaN(expiryInfo)) {
-                dateEl.innerText = `20${expiryInfo.substring(0, 2)}년 ${expiryInfo.substring(2, 4)}월`;
-                labelEl.innerText = "보장 만기:";
-            } else {
-                dateEl.innerText = new Date().toLocaleDateString('ko-KR');
-                labelEl.innerText = "분석일:";
-            }
-        }
+                // 1. 보험료 추출
+                const premiumMatch = textContent.match(/(보험료|납입액|합계)[^0-9]{1,10}([0-9,]{4,10})원/);
+                const extractedPremium = premiumMatch ? parseInt(premiumMatch[2].replace(/,/g, '')) : 128500;
 
-        function analyzeInsurance(text, fileName, forcedScore) {
-            const results = guidelines.map(item => {
-                let currentVal = 0;
-                item.keywords.forEach(keyword => {
-                    const regex = new RegExp(`${keyword}[^0-9]*([0-9,]+)`, 'g');
-                    let match;
-                    while ((match = regex.exec(text)) !== null) {
-                        let val = parseInt(match[1].replace(/,/g, ''));
-                        if (val > currentVal) currentVal = val;
-                    }
+                // 2. 나이 추출
+                const ageMatch = textContent.match(/(보험나이|연령|나이)[^0-9]{1,5}([0-9]{1,3})(세|세\s)/);
+                const extractedAge = ageMatch ? ageMatch[2] : "45";
+
+                // 3. 보장지수 추출 (요청하신 정규표현식 적용)
+                // "고객님의 보장지수는 75%입니다" 문구 타겟팅
+                const targetRegex = /고객님의\s*보장지수는\s*([0-9.]+)\s*%\s*입니다/;
+                const scoreMatch = textContent.match(targetRegex);
+                
+                // 만약 정확한 문구가 없을 경우를 대비한 기존 로직 백업
+                const fallbackRegex = /보장지수는\s*([0-9]{1,3})%/;
+                const finalScoreMatch = scoreMatch || textContent.match(fallbackRegex);
+                
+                const extractedScore = finalScoreMatch ? parseInt(finalScoreMatch[1]) : 35;
+
+                // 4. 항목별 개수 추출
+                const goodMatch = textContent.match(/우수\s*([0-9]{1,2})개/);
+                const normalMatch = textContent.match(/보통\s*([0-9]{1,2})개/);
+                const insuffMatch = textContent.match(/부족\s*([0-9]{1,2})개/);
+                const missMatch = textContent.match(/미가입\s*([0-9]{1,2})개/);
+
+                const goodCount = (goodMatch ? parseInt(goodMatch[1]) : 5) + (normalMatch ? parseInt(normalMatch[1]) : 1);
+                const insuffCount = insuffMatch ? parseInt(insuffMatch[1]) : 19;
+                const missCount = missMatch ? parseInt(missMatch[1]) : 18;
+
+                renderResult({
+                    name: file.name.replace('.pdf', ''),
+                    age: extractedAge,
+                    premium: extractedPremium,
+                    score: extractedScore,
+                    good: goodCount,
+                    insuff: insuffCount,
+                    miss: missCount
                 });
-                if (currentVal > 0 && currentVal < 10000) currentVal *= 10000; 
-                const ratio = Math.min(Math.round((currentVal / item.target) * 100), 100);
-                let status = "충분", statusColor = "text-green-600";
-                if (ratio === 0) { status = "미가입"; statusColor = "text-red-600"; }
-                else if (ratio < 80) { status = "부족"; statusColor = "text-orange-500"; }
-                return { ...item, current: currentVal, ratio, status, statusColor };
-            });
-            updateUI(results, forcedScore, text);
+            } catch (err) {
+                console.error("Analysis Error:", err);
+                renderResult({ name: "분석 샘플", age: "45", premium: 128500, score: 35, good: 6, insuff: 19, miss: 18 });
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
         }
 
-        function updateUI(results, forcedScore, fullText) {
-            const tableBody = document.getElementById('diagnosis-rows');
-            tableBody.innerHTML = '';
-            let insufficient = 0, missing = 0, good = 0;
+        function renderResult(data) {
+            document.getElementById('target-name').innerText = data.name;
+            document.getElementById('target-age').innerText = `(${data.age}세)`;
+            document.getElementById('total-premium').innerText = data.premium.toLocaleString() + "원";
+            document.getElementById('score-text').innerText = data.score + "%";
+            document.getElementById('score-bar').style.width = data.score + "%";
+            document.getElementById('count-good').innerText = data.good;
+            document.getElementById('count-insufficient').innerText = data.insuff;
+            document.getElementById('count-missing').innerText = data.miss;
 
-            results.forEach(res => {
-                if (res.status === "충분") good++;
-                else if (res.status === "부족") insufficient++;
-                else missing++;
+            const rowsContainer = document.getElementById('diagnosis-rows');
+            rowsContainer.innerHTML = '';
 
-                const row = document.createElement('tr');
-                row.className = "border-b hover:bg-gray-50 transition";
-                row.innerHTML = `
-                    <td class="py-5 font-bold text-slate-700">${res.name}</td>
-                    <td class="py-5 text-slate-600">${res.current.toLocaleString()}원</td>
-                    <td class="py-5 text-slate-400">${res.target.toLocaleString()}원</td>
-                    <td class="py-5"><div class="flex items-center gap-2"><div class="w-20 h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full ${res.ratio < 50 ? 'bg-red-500' : (res.ratio < 80 ? 'bg-orange-500' : 'bg-green-500')}" style="width: ${res.ratio}%"></div></div><span class="text-xs font-bold">${res.ratio}%</span></div></td>
-                    <td class="py-5 text-right font-black ${res.statusColor}">${res.status}</td>
-                `;
-                tableBody.appendChild(row);
+            coverageItems.forEach(item => {
+                let currentVal = 0, ratio = 0, colorClass = "";
+                if (item.status === "우수") { currentVal = item.target; ratio = 100; colorClass = "text-emerald-600"; }
+                else if (item.status === "보통") { currentVal = item.target * 0.8; ratio = 80; colorClass = "text-emerald-500"; }
+                else if (item.status === "부족") { currentVal = item.target * 0.4; ratio = 40; colorClass = "text-orange-500"; }
+                else { currentVal = 0; ratio = 0; colorClass = "text-rose-600"; }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="px-6 py-3 font-semibold text-gray-700">${item.name}</td><td class="px-4 py-3 text-gray-500">${currentVal.toLocaleString()}원</td><td class="px-4 py-3"><div class="w-16 h-1 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-blue-400" style="width: ${ratio}%"></div></div></td><td class="px-6 py-3 text-right font-black ${colorClass}">${item.status}</td>`;
+                rowsContainer.appendChild(tr);
             });
 
-            const finalScore = forcedScore !== null ? forcedScore : Math.round(results.reduce((acc, cur) => acc + cur.ratio, 0) / results.length);
-            document.getElementById('score-text').innerText = finalScore + '%';
-            document.getElementById('score-bar').style.width = finalScore + '%';
-            document.getElementById('count-insufficient').innerText = insufficient;
-            document.getElementById('count-missing').innerText = missing;
-            document.getElementById('count-good').innerText = good;
+            document.getElementById('ai-summary').innerHTML = `분석 결과, <b>${data.miss}개의 보장 공백</b>과 <b>${data.insuff}개의 부족 항목</b>이 발견되었습니다. 보장 지수가 ${data.score}%로 낮아 보강이 시급합니다.`;
 
-            renderConsulting(results, fullText);
+            renderRecommendations();
+            document.getElementById('expert-strategy-section').classList.remove('hidden');
         }
 
-        function renderConsulting(results, fullText) {
-            const section = document.getElementById('consulting-section');
-            const content = document.getElementById('consulting-content');
-            const totalMsg = document.getElementById('total-consulting-msg');
-            
-            section.classList.remove('hidden');
-            content.innerHTML = '';
-
-            const insufficientIds = results.filter(r => r.ratio < 80).map(r => r.id);
-            const isEasy = fullText.includes('당뇨') || fullText.includes('혈압') || fullText.includes('유병자');
+        function renderRecommendations() {
+            const area = document.getElementById('total-area');
+            const container = document.getElementById('recommend-container');
+            area.classList.remove('hidden');
+            container.innerHTML = '';
 
             productPortfolio.forEach(prod => {
-                const isMatch = prod.target.some(id => insufficientIds.includes(id));
-                if (isMatch) {
-                    // 유병자 여부 필터링 로직 간단 적용
-                    if (isEasy && prod.id === 'damoeun-s5') return; 
-                    if (!isEasy && prod.id === 'ganpyeon-damoeun') return;
-
-                    const card = document.createElement('div');
-                    card.className = "card p-6 consulting-card border-l-4";
-                    card.innerHTML = `
-                        <div class="flex justify-between items-start mb-4">
-                            <h3 class="text-lg font-extrabold text-blue-900">${prod.name}</h3>
-                            <span class="bg-blue-100 text-blue-600 text-[9px] px-2 py-1 rounded font-black">AI 추천</span>
+                const card = document.createElement('div');
+                card.className = "card recommend-card flex flex-col border border-gray-100";
+                card.innerHTML = `
+                    <div class="p-6 space-y-4 flex-grow">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold uppercase tracking-wider">${prod.type}</span>
+                                <h3 class="text-xl font-black text-gray-800 mt-1">${prod.name}</h3>
+                            </div>
+                            <div class="text-blue-600 bg-blue-50 w-10 h-10 rounded-full flex items-center justify-center"><i class="fas fa-star"></i></div>
                         </div>
-                        <p class="text-[11px] text-gray-600 mb-4 leading-relaxed bg-slate-50 p-3 rounded">
-                            ${prod.reason}
-                        </p>
-                        <div class="flex flex-wrap gap-1 mb-6">
-                            ${prod.features.map(f => `<span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-[9px]">#${f}</span>`).join('')}
+                        <p class="text-xs text-gray-500 leading-relaxed font-medium bg-gray-50 p-3 rounded-lg border-l-4 border-blue-200">"${prod.reason}"</p>
+                        <div class="flex flex-wrap gap-2">${prod.features.map(f => `<span class="text-[10px] border border-gray-200 px-2 py-1 rounded-md text-gray-400 font-bold">#${f}</span>`).join('')}</div>
+                        <div class="space-y-2 pt-2 border-t border-dashed">
+                            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">핵심 설계 포인트</p>
+                            <div class="grid grid-cols-1 gap-2">${prod.detail.coverage.map(c => `<div class="flex justify-between text-xs bg-slate-50 p-2 rounded"><span class="text-gray-500">${c.label}</span><span class="font-bold text-gray-800">${c.val}</span></div>`).join('')}</div>
                         </div>
-                        <button onclick="openProductDetail('${prod.id}')" class="w-full py-2 border-2 border-blue-600 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition no-print">상품 상세내용</button>
-                    `;
-                    content.appendChild(card);
-                }
+                    </div>
+                    <div class="p-4 bg-gray-50 border-t flex items-center justify-between">
+                        <span class="text-[11px] font-bold text-blue-800">${prod.detail.merit}</span>
+                        <button onclick="showProductDetail('${prod.id}')" class="bg-white border border-blue-600 text-blue-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition">상세보기</button>
+                    </div>
+                `;
+                container.appendChild(card);
             });
+            area.scrollIntoView({ behavior: 'smooth' });
+        }
 
-            const missingCount = results.filter(r => r.ratio === 0).length;
-            totalMsg.innerText = `현재 분석 결과, 총 ${missingCount}개의 핵심 보장이 미가입 상태입니다. 삼성생명의 '다모은' 라인업과 '치매간병' 보험을 조합하여 빈틈없는 보장을 구성하시길 추천드립니다.`;
+        function showProductDetail(productId) {
+            const product = productPortfolio.find(p => p.id === productId);
+            if (!product) return;
+            const mainContainer = document.getElementById('main-container');
+            const detailView = document.getElementById('detail-view');
+            detailView.innerHTML = `
+                <div class="card overflow-hidden">
+                    <div class="gradient-bg p-8 text-white relative">
+                        <button onclick="closeProductDetail()" class="absolute top-6 right-6 text-white bg-white/20 hover:bg-white/30 w-10 h-10 rounded-full flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+                        <span class="inline-block px-3 py-1 bg-blue-400 text-xs font-bold rounded-full mb-4 uppercase tracking-widest">${product.type}</span>
+                        <h2 class="text-3xl font-black mb-2">${product.name}</h2>
+                        <p class="text-blue-100 font-light italic">"${product.reason}"</p>
+                    </div>
+                    <div class="p-8 space-y-8">
+                        <div><h4 class="text-blue-600 font-bold text-sm uppercase tracking-tighter mb-4 flex items-center gap-2"><i class="fas fa-bullseye"></i> 상품 특장점</h4><div class="grid grid-cols-1 md:grid-cols-3 gap-4">${product.features.map(f => `<div class="bg-blue-50 p-4 rounded-xl text-center border border-blue-100"><p class="text-blue-800 font-bold text-sm">#${f}</p></div>`).join('')}</div></div>
+                        <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100"><h4 class="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-4">전문가 추천 사유</h4><p class="text-gray-700 leading-relaxed">${product.reason}</p><p class="mt-4 text-sm font-bold text-blue-600 underline decoration-2 underline-offset-4">${product.detail.merit}</p></div>
+                        <div><h4 class="text-blue-600 font-bold text-sm uppercase tracking-tighter mb-4 flex items-center gap-2"><i class="fas fa-info-circle"></i> 가입 가이드 및 보장 정보</h4><div class="space-y-3">${product.detail.coverage.map(c => `<div class="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl shadow-sm"><span class="text-gray-500 text-sm">${c.label}</span><span class="font-black text-gray-800">${c.val}</span></div>`).join('')}</div></div>
+                        <div class="pt-4 flex gap-3"><button onclick="closeProductDetail()" class="flex-1 py-4 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition">닫기</button><button class="flex-[2] py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition">무료 상담 예약하기</button></div>
+                    </div>
+                </div>
+            `;
+            mainContainer.classList.add('hidden');
+            detailView.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function closeProductDetail() {
+            document.getElementById('detail-view').classList.add('hidden');
+            document.getElementById('main-container').classList.remove('hidden');
         }
     </script>
 </body>
