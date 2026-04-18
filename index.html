@@ -7,6 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <!-- PDF 저장을 위한 라이브러리 추가 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
         body { font-family: 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
@@ -32,6 +35,14 @@
         .strategy-step { position: relative; padding-left: 2rem; }
         .strategy-step::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: #e2e8f0; }
         .strategy-step::after { content: ''; position: absolute; left: -4px; top: 0.5rem; width: 10px; height: 10px; border-radius: 50%; background: #2563eb; border: 2px solid white; }
+        
+        /* 토스트 메시지 스타일 */
+        #toast {
+            position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: white; padding: 0.75rem 1.5rem; border-radius: 9999px;
+            font-size: 0.875rem; z-index: 200; opacity: 0; transition: opacity 0.3s;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -40,6 +51,9 @@
         <div class="text-blue-600 mb-4 text-6xl animate-pulse-custom"><i class="fas fa-shield-heart"></i></div>
         <p id="loading-text" class="font-bold text-gray-700 text-xl">보장 데이터를 정밀 분석 중입니다...</p>
     </div>
+
+    <!-- 토스트 메시지 -->
+    <div id="toast">PDF 파일을 생성하고 있습니다...</div>
 
     <!-- [메인 컨테이너] -->
     <div id="main-container" class="max-w-5xl mx-auto space-y-8">
@@ -52,100 +66,136 @@
                 <button onclick="document.getElementById('pdf-upload').click()" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition flex items-center gap-2 shadow-lg">
                     <i class="fas fa-upload"></i> 보장분석 리포트(PDF) 업로드
                 </button>
-                <p class="text-[11px] text-gray-400 font-medium">삼성생명 43대 주요 보장 항목 및 Gemini 2.5 AI 정밀 분석</p>
+                <p class="text-[11px] text-gray-400 font-medium">삼성생명 43대 주요 보장 항목 및 Gemini AI 정밀 분석</p>
             </div>
         </section>
 
+        <!-- 분석 결과 전체 영역 (PDF 캡처 대상) -->
         <div id="report-view" class="space-y-8">
-            <!-- 헤더 섹션 -->
-            <header class="gradient-bg text-white p-8 rounded-2xl shadow-xl relative overflow-hidden">
-                <div class="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div class="text-center md:text-left">
-                        <h1 class="text-3xl font-bold mb-1 tracking-tight">Personal Insurance Audit</h1>
-                        <p class="opacity-80 text-sm font-light uppercase tracking-widest">삼성생명 지능형 보장 분석 결과</p>
-                        <div class="mt-4 flex items-center gap-2 justify-center md:justify-start">
-                            <span class="px-4 py-1 bg-white text-blue-900 rounded-full font-bold text-sm">
-                                <span id="target-name">분석 대기 중</span>
-                                <span id="target-age" class="ml-1 text-blue-600"></span>
-                            </span>
-                            <span class="text-xs opacity-70">컨설턴트: 최세림 GFC</span>
+            <div id="pdf-content-area" class="space-y-8">
+                <!-- 헤더 섹션 -->
+                <header class="gradient-bg text-white p-8 rounded-2xl shadow-xl relative overflow-hidden">
+                    <div class="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div class="text-center md:text-left">
+                            <h1 class="text-3xl font-bold mb-1 tracking-tight">Personal Insurance Audit</h1>
+                            <p class="opacity-80 text-sm font-light uppercase tracking-widest">삼성생명 지능형 보장 분석 결과</p>
+                            <div class="mt-4 flex items-center gap-2 justify-center md:justify-start">
+                                <span class="px-4 py-1 bg-white text-blue-900 rounded-full font-bold text-sm">
+                                    <span id="target-name">분석 대기 중</span>
+                                    <span id="target-age" class="ml-1 text-blue-600"></span>
+                                </span>
+                                <span class="text-xs opacity-70">컨설턴트: 최세림 GFC</span>
+                            </div>
+                        </div>
+                        <div class="bg-white bg-opacity-10 p-4 rounded-xl backdrop-blur-md border border-white border-opacity-20 text-center">
+                            <p class="text-[10px] uppercase opacity-60 mb-1">Total Monthly Premium</p>
+                            <p id="total-premium" class="text-2xl font-black">0원</p>
                         </div>
                     </div>
-                    <div class="bg-white bg-opacity-10 p-4 rounded-xl backdrop-blur-md border border-white border-opacity-20 text-center">
-                        <p class="text-[10px] uppercase opacity-60 mb-1">Total Monthly Premium</p>
-                        <p id="total-premium" class="text-2xl font-black">0원</p>
-                    </div>
-                </div>
-            </header>
+                </header>
 
-            <!-- 대시보드 요약 -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="card p-6 flex flex-col items-center justify-center">
-                    <p class="text-gray-400 text-[10px] font-bold uppercase mb-2">보장 건전성 지수</p>
-                    <div id="score-text" class="text-5xl font-black text-blue-600">0%</div>
-                    <div class="w-full h-1.5 bg-gray-100 rounded-full mt-4">
-                        <div id="score-bar" class="h-full bg-blue-600 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                <!-- 대시보드 요약 -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="card p-6 flex flex-col items-center justify-center">
+                        <p class="text-gray-400 text-[10px] font-bold uppercase mb-2">보장 건전성 지수</p>
+                        <div id="score-text" class="text-5xl font-black text-blue-600">0%</div>
+                        <div class="w-full h-1.5 bg-gray-100 rounded-full mt-4">
+                            <div id="score-bar" class="h-full bg-blue-600 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="card p-6 flex flex-col items-center justify-center">
+                        <p class="text-gray-400 text-[10px] font-bold uppercase mb-2">항목별 가입 현황</p>
+                        <div class="flex gap-4 items-end py-1">
+                            <div class="text-center">
+                                <span id="count-good" class="text-2xl font-bold text-emerald-500">0</span>
+                                <p class="text-[9px] text-gray-400 font-bold">우수/보통</p>
+                            </div>
+                            <div class="text-center border-x px-4">
+                                <span id="count-insufficient" class="text-2xl font-bold text-orange-400">0</span>
+                                <p class="text-[9px] text-gray-400 font-bold">부족</p>
+                            </div>
+                            <div class="text-center">
+                                <span id="count-missing" class="text-2xl font-bold text-rose-500">0</span>
+                                <p class="text-[9px] text-gray-400 font-bold">미가입</p>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-[9px] text-gray-300">총 43개 핵심 보장 항목 기준</p>
+                    </div>
+
+                    <div class="card p-6 bg-blue-50 border border-blue-100 flex flex-col justify-center">
+                        <p class="text-blue-800 text-[10px] font-bold uppercase mb-2 text-center">AI 분석 총평</p>
+                        <p id="ai-summary" class="text-xs text-gray-600 text-center leading-relaxed">
+                            증권을 업로드하시면 AI가 <br>보장 공백을 분석하여 상품을 제안합니다.
+                        </p>
                     </div>
                 </div>
 
-                <div class="card p-6 flex flex-col items-center justify-center">
-                    <p class="text-gray-400 text-[10px] font-bold uppercase mb-2">항목별 가입 현황</p>
-                    <div class="flex gap-4 items-end py-1">
-                        <div class="text-center">
-                            <span id="count-good" class="text-2xl font-bold text-emerald-500">0</span>
-                            <p class="text-[9px] text-gray-400 font-bold">우수/보통</p>
+                <!-- 상세 진단표 -->
+                <section class="card shadow-sm border border-gray-100">
+                    <div class="px-8 py-5 bg-gray-50 border-b flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-1 h-5 bg-blue-600 rounded-full"></div>
+                            <h3 class="font-black text-gray-800 text-base">43대 주요 보장 담보별 정밀 분석</h3>
                         </div>
-                        <div class="text-center border-x px-4">
-                            <span id="count-insufficient" class="text-2xl font-bold text-orange-400">0</span>
-                            <p class="text-[9px] text-gray-400 font-bold">부족</p>
-                        </div>
-                        <div class="text-center">
-                            <span id="count-missing" class="text-2xl font-bold text-rose-500">0</span>
-                            <p class="text-[9px] text-gray-400 font-bold">미가입</p>
+                        <div class="flex gap-4 text-[10px] font-black">
+                            <span class="flex items-center gap-1 text-emerald-600"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> 우수</span>
+                            <span class="flex items-center gap-1 text-orange-500"><span class="w-2 h-2 rounded-full bg-orange-500"></span> 부족</span>
+                            <span class="flex items-center gap-1 text-rose-600"><span class="w-2 h-2 rounded-full bg-rose-500"></span> 미가입</span>
                         </div>
                     </div>
-                    <p class="mt-3 text-[9px] text-gray-300">총 43개 핵심 보장 항목 기준</p>
-                </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-white border-b">
+                                <tr class="text-gray-400 text-[11px] font-black uppercase tracking-tighter">
+                                    <th class="px-8 py-4">보장 담보 명칭</th>
+                                    <th class="px-4 py-4">현재 가입금액</th>
+                                    <th class="px-4 py-4 text-center">진단 그래프</th>
+                                    <th class="px-8 py-4 text-right">상태</th>
+                                </tr>
+                            </thead>
+                            <tbody id="diagnosis-rows" class="divide-y divide-gray-50">
+                                <tr><td colspan="4" class="py-32 text-center text-gray-300 font-bold">리포트를 업로드하시면 상세 분석 데이터가 표시됩니다.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
-                <div class="card p-6 bg-blue-50 border border-blue-100 flex flex-col justify-center">
-                    <p class="text-blue-800 text-[10px] font-bold uppercase mb-2 text-center">AI 분석 총평</p>
-                    <p id="ai-summary" class="text-xs text-gray-600 text-center leading-relaxed">
-                        증권을 업로드하시면 AI가 <br>보장 공백을 분석하여 상품을 제안합니다.
-                    </p>
-                </div>
+                <!-- 전문가 제안 섹션 -->
+                <section id="expert-strategy-section" class="hidden space-y-6">
+                    <div class="flex items-center gap-3">
+                        <div class="h-6 w-1.5 bg-blue-900 rounded-full"></div>
+                        <h2 class="text-xl font-black text-gray-800">전문가 제안 가입 전략 및 상품 안내</h2>
+                    </div>
+                    <div class="card p-8 border-l-8 border-blue-900">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div class="space-y-6">
+                                <h3 class="text-lg font-bold text-blue-900 flex items-center gap-2">
+                                    <i class="fas fa-lightbulb"></i> 맞춤형 보강 로드맵
+                                </h3>
+                                <div id="dynamic-strategy" class="space-y-4"></div>
+                            </div>
+                            <div class="bg-slate-50 p-6 rounded-xl border border-slate-100 flex flex-col justify-between">
+                                <div>
+                                    <h4 class="text-sm font-black text-gray-700 mb-4 uppercase tracking-tighter">컨설턴트 핵심 체크포인트</h4>
+                                    <ul class="space-y-3">
+                                        <li class="flex items-start gap-2 text-xs text-gray-600">
+                                            <i class="fas fa-check-circle text-blue-600 mt-0.5"></i>
+                                            <span>기존 보험 해지보다는 <b>부족분 보강</b>을 우선하여 가성비 극대화</span>
+                                        </li>
+                                        <li class="flex items-start gap-2 text-xs text-gray-600">
+                                            <i class="fas fa-check-circle text-blue-600 mt-0.5"></i>
+                                            <span>가족력을 고려한 <b>유사암/전이암</b> 범위 확대 제안</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
 
-            <!-- 상세 진단표 -->
-            <section class="card shadow-sm border border-gray-100">
-                <div class="px-8 py-5 bg-gray-50 border-b flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-1 h-5 bg-blue-600 rounded-full"></div>
-                        <h3 class="font-black text-gray-800 text-base">43대 주요 보장 담보별 정밀 분석</h3>
-                    </div>
-                    <div class="flex gap-4 text-[10px] font-black">
-                        <span class="flex items-center gap-1 text-emerald-600"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> 우수</span>
-                        <span class="flex items-center gap-1 text-orange-500"><span class="w-2 h-2 rounded-full bg-orange-500"></span> 부족</span>
-                        <span class="flex items-center gap-1 text-rose-600"><span class="w-2 h-2 rounded-full bg-rose-500"></span> 미가입</span>
-                    </div>
-                </div>
-                <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
-                    <table class="w-full text-left">
-                        <thead class="sticky top-0 bg-white border-b z-10">
-                            <tr class="text-gray-400 text-[11px] font-black uppercase tracking-tighter">
-                                <th class="px-8 py-4">보장 담보 명칭</th>
-                                <th class="px-4 py-4">현재 가입금액</th>
-                                <th class="px-4 py-4 text-center">진단 그래프</th>
-                                <th class="px-8 py-4 text-right">상태</th>
-                            </tr>
-                        </thead>
-                        <tbody id="diagnosis-rows" class="divide-y divide-gray-50">
-                            <tr><td colspan="4" class="py-32 text-center text-gray-300 font-bold">리포트를 업로드하시면 상세 분석 데이터가 표시됩니다.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- 추천 상품 섹션 -->
+            <!-- 추천 상품 섹션 (PDF 캡처에서는 제외하거나 포함 선택 가능, 여기서는 포함) -->
             <section id="total-area" class="space-y-6 hidden">
                 <div class="flex items-center gap-3">
                     <div class="h-6 w-1.5 bg-blue-600 rounded-full"></div>
@@ -154,47 +204,12 @@
                 <div id="recommend-container" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
             </section>
 
-            <!-- 전문가 제안 섹션 -->
-            <section id="expert-strategy-section" class="hidden space-y-6">
-                <div class="flex items-center gap-3">
-                    <div class="h-6 w-1.5 bg-blue-900 rounded-full"></div>
-                    <h2 class="text-xl font-black text-gray-800">전문가 제안 가입 전략 및 상품 안내</h2>
-                </div>
-                <div class="card p-8 border-l-8 border-blue-900">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div class="space-y-6">
-                            <h3 class="text-lg font-bold text-blue-900 flex items-center gap-2">
-                                <i class="fas fa-lightbulb"></i> 맞춤형 보강 로드맵
-                            </h3>
-                            <div id="dynamic-strategy" class="space-y-4">
-                                <!-- AI가 생성한 전략이 들어가는 곳 -->
-                            </div>
-                        </div>
-                        <div class="bg-slate-50 p-6 rounded-xl border border-slate-100 flex flex-col justify-between">
-                            <div>
-                                <h4 class="text-sm font-black text-gray-700 mb-4 uppercase tracking-tighter">컨설턴트 핵심 체크포인트</h4>
-                                <ul class="space-y-3">
-                                    <li class="flex items-start gap-2 text-xs text-gray-600">
-                                        <i class="fas fa-check-circle text-blue-600 mt-0.5"></i>
-                                        <span>기존 보험 해지보다는 <b>부족분 보강</b>을 우선하여 가성비 극대화</span>
-                                    </li>
-                                    <li class="flex items-start gap-2 text-xs text-gray-600">
-                                        <i class="fas fa-check-circle text-blue-600 mt-0.5"></i>
-                                        <span>가족력을 고려한 <b>유사암/전이암</b> 범위 확대 제안</span>
-                                    </li>
-                                    <li class="flex items-start gap-2 text-xs text-gray-600">
-                                        <i class="fas fa-check-circle text-blue-600 mt-0.5"></i>
-                                        <span>유병력자의 경우 <b>계약전환제도</b>를 활용한 향후 보험료 인하 전략</span>
-                                    </li>
-                                </ul>
-                            </div>
-                            <div class="mt-6 pt-4 border-t border-slate-200">
-                                <p class="text-[10px] text-gray-400 font-medium">※ 본 안내는 고객님의 보장 분석 결과를 바탕으로 전문가가 주관적으로 작성한 가이드라인이며, 실제 가입 시 상품 설명서를 반드시 확인하시기 바랍니다.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <!-- PDF 저장 실행 버튼 (분석 후 나타남) -->
+            <div id="pdf-action-area" class="hidden py-10 text-center">
+                <button onclick="saveResultAsPDF()" class="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black hover:bg-black transition-all shadow-2xl flex items-center gap-3 mx-auto">
+                    <i class="fas fa-file-pdf text-xl"></i> 분석 결과 보고서 PDF 저장하기
+                </button>
+            </div>
         </div>
     </div>
 
@@ -202,7 +217,7 @@
     <div id="detail-view" class="max-w-3xl mx-auto hidden fade-in py-4"></div>
 
     <script>
-        const apiKey = ""; // 환경 제공 키 사용
+        const apiKey = ""; 
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
         const productPortfolio = [
@@ -229,7 +244,7 @@
               "aiSummary": "보장 공백에 대한 2문장 이내의 총평",
               "strategies": [ { "step": "1", "title": "전략 제목", "desc": "상세 설명" } ]
             }
-            43대 담보 리스트를 최대한 찾아내고 리포트의 수치를 존중하세요.`;
+            43대 담보 리스트를 찾아내고 수치를 존중하세요.`;
 
             const payload = {
                 contents: [{ parts: [{ text: text }] }],
@@ -237,9 +252,11 @@
                 generationConfig: { responseMimeType: "application/json" }
             };
 
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
             for (let i = 0; i < 5; i++) {
                 try {
-                    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    const resp = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
@@ -270,7 +287,7 @@
                     rawText += content.items.map(it => it.str).join(" ") + "\n";
                 }
 
-                loadingText.innerText = "Gemini 2.5 AI가 보장 데이터를 정밀 분석 중입니다...";
+                loadingText.innerText = "AI가 보장 데이터를 정밀 분석 중입니다...";
                 const data = await analyzeWithGemini(rawText);
                 renderResult(data);
             } catch (err) {
@@ -284,12 +301,10 @@
         function renderResult(data) {
             if (!data) return;
 
-            // 헤더 정보
             document.getElementById('target-name').innerText = data.userName || "고객님";
             document.getElementById('target-age').innerText = data.userAge ? `(${data.userAge}세)` : "";
             document.getElementById('total-premium').innerText = (parseInt(data.totalPremium) || 0).toLocaleString() + "원";
             
-            // 대시보드
             document.getElementById('score-text').innerText = (data.safetyScore || 0) + "%";
             document.getElementById('score-bar').style.width = (data.safetyScore || 0) + "%";
             
@@ -299,7 +314,6 @@
             document.getElementById('count-missing').innerText = counts.miss || 0;
             document.getElementById('ai-summary').innerHTML = data.aiSummary || "분석 결과가 없습니다.";
 
-            // 상세 진단표
             const rowsContainer = document.getElementById('diagnosis-rows');
             rowsContainer.innerHTML = '';
             
@@ -328,11 +342,8 @@
                     `;
                     rowsContainer.appendChild(tr);
                 });
-            } else {
-                rowsContainer.innerHTML = `<tr><td colspan="4" class="py-20 text-center text-gray-400">분석된 담보 정보가 없습니다.</td></tr>`;
             }
 
-            // 동적 전략
             const strategyContainer = document.getElementById('dynamic-strategy');
             strategyContainer.innerHTML = '';
             if (data.strategies) {
@@ -346,6 +357,8 @@
 
             renderRecommendations();
             document.getElementById('expert-strategy-section').classList.remove('hidden');
+            // 분석 완료 후 PDF 저장 영역 표시
+            document.getElementById('pdf-action-area').classList.remove('hidden');
         }
 
         function renderRecommendations() {
@@ -364,23 +377,64 @@
                                 <span class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-bold uppercase tracking-wider">${prod.type}</span>
                                 <h3 class="text-xl font-black text-gray-800 mt-1">${prod.name}</h3>
                             </div>
-                            <div class="text-blue-600 bg-blue-50 w-10 h-10 rounded-full flex items-center justify-center"><i class="fas fa-star"></i></div>
                         </div>
                         <p class="text-xs text-gray-500 leading-relaxed font-medium bg-gray-50 p-3 rounded-lg border-l-4 border-blue-200">"${prod.reason}"</p>
                         <div class="flex flex-wrap gap-2">${prod.features.map(f => `<span class="text-[10px] border border-gray-200 px-2 py-1 rounded-md text-gray-400 font-bold">#${f}</span>`).join('')}</div>
-                        <div class="space-y-2 pt-2 border-t border-dashed">
-                            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">핵심 설계 포인트</p>
-                            <div class="grid grid-cols-1 gap-2">${prod.detail.coverage.map(c => `<div class="flex justify-between text-xs bg-slate-50 p-2 rounded"><span class="text-gray-500">${c.label}</span><span class="font-bold text-gray-800">${c.val}</span></div>`).join('')}</div>
-                        </div>
-                    </div>
-                    <div class="p-4 bg-gray-50 border-t flex items-center justify-between">
-                        <span class="text-[11px] font-bold text-blue-800">${prod.detail.merit}</span>
-                        <button onclick="showProductDetail('${prod.id}')" class="bg-white border border-blue-600 text-blue-600 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition">상세보기</button>
                     </div>
                 `;
                 container.appendChild(card);
             });
             area.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // PDF 저장 핵심 함수
+        async function saveResultAsPDF() {
+            const { jsPDF } = window.jspdf;
+            const content = document.getElementById('report-view');
+            const toast = document.getElementById('toast');
+
+            toast.style.opacity = "1";
+
+            try {
+                const canvas = await html2canvas(content, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: "#f8fafc",
+                    scrollX: 0,
+                    scrollY: -window.scrollY
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const imgProps = pdf.getImageProperties(imgData);
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                // 긴 리포트인 경우 페이지 나누기 처리
+                let heightLeft = pdfHeight;
+                let position = 0;
+                const pageHeight = pdf.internal.pageSize.getHeight();
+
+                pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+                heightLeft -= pageHeight;
+
+                while (heightLeft >= 0) {
+                    position = heightLeft - pdfHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+                    heightLeft -= pageHeight;
+                }
+
+                const userName = document.getElementById('target-name').innerText;
+                pdf.save(`삼성생명_보장분석_리포트_${userName}.pdf`);
+                
+                toast.innerText = "PDF 저장이 완료되었습니다.";
+                setTimeout(() => toast.style.opacity = "0", 2000);
+            } catch (err) {
+                console.error(err);
+                toast.innerText = "PDF 생성 중 오류가 발생했습니다.";
+                setTimeout(() => toast.style.opacity = "0", 2000);
+            }
         }
 
         function showProductDetail(productId) {
@@ -392,16 +446,9 @@
                 <div class="card overflow-hidden">
                     <div class="gradient-bg p-8 text-white relative">
                         <button onclick="closeProductDetail()" class="absolute top-6 right-6 text-white bg-white/20 hover:bg-white/30 w-10 h-10 rounded-full flex items-center justify-center transition"><i class="fas fa-times"></i></button>
-                        <span class="inline-block px-3 py-1 bg-blue-400 text-xs font-bold rounded-full mb-4 uppercase tracking-widest">${product.type}</span>
                         <h2 class="text-3xl font-black mb-2">${product.name}</h2>
-                        <p class="text-blue-100 font-light italic">"${product.reason}"</p>
                     </div>
-                    <div class="p-8 space-y-8">
-                        <div><h4 class="text-blue-600 font-bold text-sm uppercase tracking-tighter mb-4 flex items-center gap-2"><i class="fas fa-bullseye"></i> 상품 특장점</h4><div class="grid grid-cols-1 md:grid-cols-3 gap-4">${product.features.map(f => `<div class="bg-blue-50 p-4 rounded-xl text-center border border-blue-100"><p class="text-blue-800 font-bold text-sm">#${f}</p></div>`).join('')}</div></div>
-                        <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100"><h4 class="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-4">전문가 추천 사유</h4><p class="text-gray-700 leading-relaxed">${product.reason}</p><p class="mt-4 text-sm font-bold text-blue-600 underline decoration-2 underline-offset-4">${product.detail.merit}</p></div>
-                        <div><h4 class="text-blue-600 font-bold text-sm uppercase tracking-tighter mb-4 flex items-center gap-2"><i class="fas fa-info-circle"></i> 가입 가이드 및 보장 정보</h4><div class="space-y-3">${product.detail.coverage.map(c => `<div class="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl shadow-sm"><span class="text-gray-500 text-sm">${c.label}</span><span class="font-black text-gray-800">${c.val}</span></div>`).join('')}</div></div>
-                        <div class="pt-4 flex gap-3"><button onclick="closeProductDetail()" class="flex-1 py-4 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition">닫기</button><button class="flex-[2] py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition">무료 상담 예약하기</button></div>
-                    </div>
+                    <div class="p-8"><button onclick="closeProductDetail()" class="w-full py-4 bg-gray-100 text-gray-600 rounded-xl font-bold">닫기</button></div>
                 </div>
             `;
             mainContainer.classList.add('hidden');
